@@ -1,48 +1,37 @@
+class MessageSender
 
-class IMessageSender
-
-  # constructs the apple script  
-  def self.apple_script(phone, text)
-    script = "tell application \"Messages\" to activate\n" +
-             "delay 1\n" +
-             "tell application \"System Events\"\n" +
-             "  keystroke \"f\" using {command down}\n" +
-             "  delay 0.5\n" +
-             "  keystroke tab\n" +
-             "  delay 0.5\n" +
-             "  keystroke \"n\" using {command down}\n" +
-             "	delay 0.5\n" +
-             "  keystroke \"#{phone}\"\n" +
-             "  keystroke return\n" +
-             "	delay 0.5\n" +
-             "  keystroke \"#{phone}\"\n" +
-             "  keystroke return\n" +
-             "	delay 0.5\n" +
-             "  keystroke tab\n" +
-             "  delay 0.5\n" +
-             "  keystroke \"a\" using {command down}\n" +
-             "	delay 0.5\n" +
-             "  keystroke \"#{text.gsub("\"", "`").gsub("'", "`").gsub("\t", " ").gsub("\n", " *** ").gsub("\r", " ")}\"\n" +
-             "  keystroke return\n" +
-             "end tell"
-    script
+  def initialize(message)
+    @text = message
   end
 
-  # sends an imessage
-  def self.send(phone, text)
-    p "requiring lock"
-    File.open("/tmp/.imessager", "w") do |f|
-      f.flock File::LOCK_EX
-      p 'got lock'
-      puts "apple script: #{self.apple_script(phone, text)}"
-      result = system("osascript -e '#{self.apple_script(phone, text)}'")
-      unless result
-        puts "error executing applescript. sending simplified version.."
-        simple = text.gsub(/[^0-9a-z]/i, ' ')
-        system("osascript -e '#{self.apple_script(phone, simple)}'")
-      end
-    end
-    p 'done'
+  def send!
+    puts "Attempting to send '#{@text}'."
+    system(send)
+    puts "Message appears to have successfully sent!"
   end
+
+  private
+
+  DEFAULT_PHONE_NUMBER = ENV['MICHAELS_PHONE_NUMBER']
+
+  def send
+    @send ||= "osascript -e \"#{apple_script}\""
+  end
+
+  # http://www.tenshu.net/2015/02/send-imessage-and-sms-with-applescript.html
+  def raw_script
+    %(
+      tell application "Messages"
+        send "#{@text}" to buddy "#{DEFAULT_PHONE_NUMBER}" of (service 1 whose service type is iMessage)
+      end tell
+    )
+  end
+
+  def apple_script
+    raise "Unsupported character!" if @text =~ /[\n"\\]/
+    raw_script.gsub('"', "\\\"") # escape quotes
+  end
+
 end
 
+MessageSender.new("How is your day going?").send!
